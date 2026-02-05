@@ -2,11 +2,16 @@ package com.example.fnol_agent.service;
 
 
 import com.example.fnol_agent.model.*;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.text.PDFTextStripper;
+import org.apache.pdfbox.text.PDFTextStripperByArea;
+import org.slf4j.Logger;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.awt.*;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -21,6 +26,8 @@ import java.util.regex.Pattern;
 /**
  * Service for extracting information from FNOL documents
  */
+
+@Slf4j
 @Service
 public class DocumentExtractionService {
 
@@ -57,10 +64,18 @@ public class DocumentExtractionService {
      */
     public String extractTextFromPdf(MultipartFile file) throws IOException {
         try (PDDocument document = PDDocument.load(file.getInputStream())) {
-            PDFTextStripper stripper = new PDFTextStripper();
-            return stripper.getText(document);
+
+            // Simple heuristic: ACORD PDFs contain this header
+            String rawText = new PDFTextStripper().getText(document);
+
+            if (rawText.contains("AUTOMOBILE LOSS NOTICE")) {
+                return extractTextByBoxes(document);
+            }
+
+            return rawText;
         }
     }
+
 
     /**
      * Extract text from plain text file
@@ -413,4 +428,94 @@ public class DocumentExtractionService {
 
         return null;
     }
+
+    private String extractTextByBoxes(PDDocument document) throws IOException {
+        PDPage page = document.getPage(0);
+        float pageHeight = page.getMediaBox().getHeight();
+
+        PDFTextStripperByArea stripper = new PDFTextStripperByArea();
+        stripper.setSortByPosition(true);
+
+        // === ADJUSTED COORDINATES FOR ACORD FORM ===
+        // Policy Number - upper right area
+        stripper.addRegion("policyNumber",
+                rectFromTop(335, 75, 140, 20, pageHeight));
+
+        // Insured Name - left column below INSURED heading
+        stripper.addRegion("insuredName",
+                rectFromTop(25, 155, 220, 20, pageHeight));
+
+        // Date of Loss - right side of form
+        stripper.addRegion("dateOfLoss",
+                rectFromTop(480, 55, 60, 20, pageHeight));
+
+        // Loss Location - describe location section
+        stripper.addRegion("lossLocation",
+                rectFromTop(25, 360, 300, 30, pageHeight));
+
+        // Description of Accident
+        stripper.addRegion("description",
+                rectFromTop(25, 408, 500, 60, pageHeight));
+
+        // VIN - in insured vehicle section
+        stripper.addRegion("vin",
+                rectFromTop(300, 480, 100, 20, pageHeight));
+
+        // Estimate Amount
+        stripper.addRegion("estimateAmount",
+                rectFromTop(25, 610, 150, 20, pageHeight));
+
+        stripper.extractRegions(page);
+
+        StringBuilder sb = new StringBuilder();
+
+        appendIfPresent(sb, "Policy Number",
+                stripper.getTextForRegion("policyNumber"));
+
+        appendIfPresent(sb, "Policyholder Name",
+                stripper.getTextForRegion("insuredName"));
+
+        appendIfPresent(sb, "Date of Loss",
+                stripper.getTextForRegion("dateOfLoss"));
+
+        appendIfPresent(sb, "Location",
+                stripper.getTextForRegion("lossLocation"));
+
+        appendIfPresent(sb, "Description",
+                stripper.getTextForRegion("description"));
+
+        appendIfPresent(sb, "VIN",
+                stripper.getTextForRegion("vin"));
+
+        appendIfPresent(sb, "Estimated Damage",
+                stripper.getTextForRegion("estimateAmount"));
+
+        log.info("Box Extraction Output:\n{}", sb);
+        return sb.toString();
+    }
+
+    private Rectangle rectFromTop(
+            float x, float topY, float width, float height, float pageHeight) {
+        float pdfY = pageHeight - topY - height;
+        return new Rectangle(
+                Math.round(x),
+                Math.round(pdfY),
+                Math.round(width),
+                Math.round(height)
+        );
+    }
+
+    private void appendIfPresent(StringBuilder sb, String label, String value) {
+        if (value != null && !value.trim().isEmpty()) {
+            sb.append(label)
+                    .append(": ")
+                    .append(value.trim().replaceAll("\\s+", " "))
+                    .append("\n");
+        }
+    }
+
+
+
+
+
 }

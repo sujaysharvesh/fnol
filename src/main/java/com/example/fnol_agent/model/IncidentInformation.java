@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.List;
 
 /**
  * Incident Information extracted from FNOL document
@@ -27,6 +28,14 @@ public class IncidentInformation {
 
     private String description;
 
+
+    private static final List<String> FRAUD_KEYWORDS = List.of(
+            "fraud",
+            "inconsistent",
+            "staged",
+            "fake"
+    );
+
     /**
      * Check if all mandatory incident fields are present
      */
@@ -40,15 +49,12 @@ public class IncidentInformation {
      * Check if description contains fraud indicators
      */
     public boolean hasFraudIndicators() {
-        if (description == null) {
+        if (description == null || description.isBlank()) {
             return false;
         }
 
-        String lowerDesc = description.toLowerCase();
-        return lowerDesc.contains("fraud") ||
-                lowerDesc.contains("inconsistent") ||
-                lowerDesc.contains("staged") ||
-                lowerDesc.contains("suspicious") ||
-                lowerDesc.contains("fake");
+        String text = description.toLowerCase();
+
+        return FRAUD_KEYWORDS.stream().anyMatch(text::contains);
     }
 }

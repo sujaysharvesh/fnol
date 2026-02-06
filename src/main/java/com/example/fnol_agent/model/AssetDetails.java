@@ -15,17 +15,11 @@ import java.math.BigDecimal;
 @AllArgsConstructor
 public class AssetDetails {
 
-    private String assetType; // VEHICLE, PROPERTY, OTHER
+    private String assetType;
 
-    private String assetId; // VIN, Property ID, etc.
+    private String assetId;
 
     private BigDecimal estimatedDamage;
-
-    private String make;
-
-    private String model;
-
-    private String year;
 
     private String description;
 
@@ -43,6 +37,6 @@ public class AssetDetails {
      */
     public boolean isUnderFastTrackThreshold(BigDecimal threshold) {
         return estimatedDamage != null &&
-                estimatedDamage.compareTo(threshold) < 0;
+                estimatedDamage.compareTo(threshold) < 25000;
     }
 }

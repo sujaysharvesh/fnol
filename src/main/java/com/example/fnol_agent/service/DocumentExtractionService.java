@@ -27,6 +27,8 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static java.awt.SystemColor.text;
+
 /**
  * Service for extracting information from FNOL documents
  */
@@ -110,11 +112,11 @@ public class DocumentExtractionService {
                 .policyInformation(extractPolicyInformation(info))
                 .incidentInformation(extractIncidentInformation(info))
                 .involvedParties(extractInvolvedParties(info))
-                .assetDetails(extractAssetDetails(info)).build();
-//                .claimType(extractClaimType(info))
-//                .attachments(new ArrayList<>())
-//                .initialEstimate(extractInitialEstimate(info))
-//                .build();
+                .assetDetails(extractAssetDetails(info))
+                .claimType(extractClaimType(info))
+                .attachments(new ArrayList<>())
+                .initialEstimate(extractInitialEstimate(info))
+                .build();
     }
 
     /**
@@ -259,58 +261,35 @@ public class DocumentExtractionService {
     /**
      * Extract asset details
      */
-    private AssetDetails extractAssetDetails(Map<String, String> text) {
-        AssetDetails.AssetDetailsBuilder builder = AssetDetails.builder();
+    private AssetDetails extractAssetDetails(Map<String, String> form) {
 
-        // Determine asset type
-        String assetType = "VEHICLE"; // Default
-        if (text.toLowerCase().contains("property damage")) {
-            assetType = "PROPERTY";
-        }
-        builder.assetType(assetType);
+        AssetDetails assetDetails = AssetDetails.builder()
+                .assetType("VEHICLE")
+                .assetId(getFormValue(form, "PLATE NUMBER"))
+                .estimatedDamage(BigDecimal.valueOf(Double.parseDouble(getFormValue(form, "Text45"))))
+                .description(getFormValue(form, "DESCRIBE DAMAGE"))
+                .build();
 
-        // Extract VIN
-        Matcher vinMatcher = VIN_PATTERN.matcher(text);
-        if (vinMatcher.find()) {
-            builder.assetId(vinMatcher.group(1));
-        }
+        return assetDetails;
 
-        // Extract vehicle details
-        builder.make(extractFieldValue(text, "Make"));
-        builder.model(extractFieldValue(text, "Model"));
-        builder.year(extractFieldValue(text, "Year"));
-
-        // Extract estimated damage
-        BigDecimal damage = extractAmount(text, "(?:Estimated Damage|Damage Estimate)");
-        builder.estimatedDamage(damage);
-
-        return builder.build();
     }
 
     /**
      * Extract claim type
      */
-    private String extractClaimType(String text) {
-        String lowerText = text.toLowerCase();
+    private String extractClaimType(Map<String, String> form) {
+        boolean isProperty =
+                "Yes".equalsIgnoreCase(getFormValue(form, "Check Box46"));
 
-        if (lowerText.contains("injury") || lowerText.contains("bodily harm")) {
-            return "INJURY";
-        } else if (lowerText.contains("property damage")) {
-            return "PROPERTY";
-        } else if (lowerText.contains("liability")) {
-            return "LIABILITY";
-        } else if (lowerText.contains("comprehensive") || lowerText.contains("collision")) {
-            return "COMPREHENSIVE";
-        }
-
-        return "PROPERTY"; // Default
+        return isProperty ? "PROPERTY" : "VEHICLE";
     }
+
 
     /**
      * Extract initial estimate
      */
-    private BigDecimal extractInitialEstimate(String text) {
-        return extractAmount(text, "(?:Initial Estimate|Estimate|Claim Amount)");
+    private BigDecimal extractInitialEstimate(Map<String, String> form) {
+        return BigDecimal.valueOf(Double.parseDouble(getFormValue(form, "Text45")));
     }
 
     /**

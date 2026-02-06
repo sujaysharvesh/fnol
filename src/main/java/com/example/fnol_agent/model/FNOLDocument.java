@@ -27,7 +27,7 @@ public class FNOLDocument {
 
     private AssetDetails assetDetails;
 
-    private String claimType; // PROPERTY, VEHICLE
+    private ClaimType claimType; // PROPERTY, VEHICLE
 
     @Builder.Default
     private List<String> attachments = new ArrayList<>();
@@ -94,7 +94,7 @@ public class FNOLDocument {
         }
 
         // Other mandatory fields
-        if (claimType == null || claimType.isBlank()) {
+        if (claimType == null) {
             missing.add("claimType");
         }
 

@@ -39,4 +39,11 @@ public class AssetDetails {
         return estimatedDamage != null &&
                 estimatedDamage.compareTo(threshold) < 25000;
     }
+
+    public enum PhoneType {
+        HOME,
+        BUS,
+        CELL,
+
+    }
 }

@@ -1,6 +1,7 @@
 package com.example.fnol_agent.service;
 
 
+import com.example.fnol_agent.model.ClaimType;
 import com.example.fnol_agent.model.FNOLDocument;
 import com.example.fnol_agent.model.RoutingDecision;
 import org.springframework.stereotype.Service;
@@ -35,7 +36,7 @@ public class ClaimRoutingService {
         }
 
         // Rule 3: If claim type = injury → Specialist Queue
-        if ("INJURY".equalsIgnoreCase(document.getClaimType())) {
+        if (ClaimType.INJURY == document.getClaimType()) {
             return RoutingDecision.SPECIALIST_QUEUE;
         }
 

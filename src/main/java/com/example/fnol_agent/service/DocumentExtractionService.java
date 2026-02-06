@@ -4,20 +4,14 @@ package com.example.fnol_agent.service;
 import com.example.fnol_agent.model.*;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.pdmodel.PDDocument;
-import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.interactive.form.PDAcroForm;
 import org.apache.pdfbox.pdmodel.interactive.form.PDField;
-import org.apache.pdfbox.text.PDFTextStripper;
-import org.apache.pdfbox.text.PDFTextStripperByArea;
-import org.slf4j.Logger;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.awt.*;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
@@ -26,8 +20,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import static java.awt.SystemColor.text;
 
 /**
  * Service for extracting information from FNOL documents
@@ -242,16 +234,16 @@ public class DocumentExtractionService {
     }
 
 
-    public PhoneType getPhoneType(Map<String, String> form, String home, String bus, String cell) {
+    public AssetDetails.PhoneType getPhoneType(Map<String, String> form, String home, String bus, String cell) {
 
         if ("Yes".equalsIgnoreCase(form.get(home))) {
-            return PhoneType.HOME;
+            return AssetDetails.PhoneType.HOME;
         }
         if ("Yes".equalsIgnoreCase(form.get(bus))) {
-            return PhoneType.BUS;
+            return AssetDetails.PhoneType.BUS;
         }
         if ("Yes".equalsIgnoreCase(form.get(cell))) {
-            return PhoneType.CELL;
+            return AssetDetails.PhoneType.CELL;
         }
 
         return null;
@@ -277,12 +269,17 @@ public class DocumentExtractionService {
     /**
      * Extract claim type
      */
-    private String extractClaimType(Map<String, String> form) {
-        boolean isProperty =
-                "Yes".equalsIgnoreCase(getFormValue(form, "Check Box46"));
+    private ClaimType extractClaimType(Map<String, String> form) {
 
-        return isProperty ? "PROPERTY" : "VEHICLE";
+        if (getFormValue(form, "NAME  ADDRESSRow1") != null) {
+            return ClaimType.INJURY;
+        }
+
+        return "Yes".equalsIgnoreCase(getFormValue(form, "Check Box46"))
+                ? ClaimType.PROPERTY
+                : ClaimType.VEHICLE;
     }
+
 
 
     /**

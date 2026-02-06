@@ -1,6 +1,5 @@
 package com.example.fnol_agent.model;
 
-import com.example.fnol_agent.service.PhoneType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -21,11 +20,11 @@ public class InvolvedParty {
 
     private String primaryPhone;
 
-    private PhoneType primaryPhoneType;
+    private AssetDetails.PhoneType primaryPhoneType;
 
     private String secondaryPhone;
 
-    private PhoneType secondaryPhoneType;
+    private AssetDetails.PhoneType secondaryPhoneType;
 
     private String primaryMailId;
 

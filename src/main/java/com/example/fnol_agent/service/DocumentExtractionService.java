@@ -108,9 +108,9 @@ public class DocumentExtractionService {
     public FNOLDocument extractFNOLDocument(Map<String, String> info) {
         return FNOLDocument.builder()
                 .policyInformation(extractPolicyInformation(info))
-                .incidentInformation(extractIncidentInformation(info)).build();
-//                .involvedParties(extractInvolvedParties(info))
-//                .assetDetails(extractAssetDetails(info))
+                .incidentInformation(extractIncidentInformation(info))
+                .involvedParties(extractInvolvedParties(info))
+                .assetDetails(extractAssetDetails(info)).build();
 //                .claimType(extractClaimType(info))
 //                .attachments(new ArrayList<>())
 //                .initialEstimate(extractInitialEstimate(info))
@@ -148,39 +148,118 @@ public class DocumentExtractionService {
         return incidentInformation;
     }
 
+
+
     /**
      * Extract involved parties
      */
-    private List<InvolvedParty> extractInvolvedParties(String text) {
+    private List<InvolvedParty> extractInvolvedParties(Map<String, String> form) {
         List<InvolvedParty> parties = new ArrayList<>();
 
-        // Extract claimant
-        String claimantName = extractFieldValue(text, "(?:Claimant|Insured)");
-        if (claimantName != null && !claimantName.isBlank()) {
-            parties.add(InvolvedParty.builder()
-                    .name(claimantName)
+        InvolvedParty claimant = InvolvedParty.builder()
+                    .name(getFormValue(form, "NAME OF INSURED First Middle Last"))
                     .role("CLAIMANT")
-                    .contactPhone(extractPhone(text))
-                    .contactEmail(extractEmail(text))
-                    .build());
+                    .primaryPhone(getFormValue(form, "PHONE  CELL HOME BUS PRIMARY"))
+                    .primaryPhoneType(getPhoneType(form, "Check Box10", "Check Box11", "Check Box12"))
+                    .secondaryPhone(getFormValue(form, "PHONE  SECONDARY CELL HOME BUS"))
+                    .secondaryPhoneType(getPhoneType(form, "Check Box13", "Check Box14", "Check Box15"))
+                    .primaryMailId(getFormValue(form, "PRIMARY EMAIL ADDRESS"))
+                    .secondaryMailId(getFormValue(form,"SECONDARY EMAIL ADDRESS"))
+                    .build();
+
+        parties.add(claimant);
+        buildThirdParties(form, parties);
+
+        return parties;
+    }
+
+    private List<InvolvedParty> buildThirdParties(Map<String, String> form, List<InvolvedParty> parties) {
+
+        String ownerName = getFormValue(form, "Text48");
+        String driverName = getFormValue(form, "Text81");
+
+        boolean sameAsOwner =
+                "Yes".equalsIgnoreCase(getFormValue(form, "Check Box55"));
+
+        // --- OWNER ---
+        if (ownerName != null && !ownerName.isBlank()) {
+            parties.add(
+                    InvolvedParty.builder()
+                            .name(ownerName)
+                            .role("THIRD_PARTY_OWNER")
+                            .primaryPhone(getFormValue(form, "PHONE  CELL HOME BUS PRIMARY_5"))
+                            .primaryPhoneType(getPhoneType(
+                                    form,
+                                    "Check Box49",
+                                    "Check Box50",
+                                    "Check Box51"
+                            ))
+                            .secondaryPhone(getFormValue(form, "PHONE  SECONDARY CELL HOME BUS_5"))
+                            .secondaryPhoneType(getPhoneType(
+                                    form,
+                                    "OWNER HOME SECONDARY",
+                                    "OWNER BUS SECONDARY",
+                                    "OWNER CELL SECONDARY"
+                            ))
+                            .primaryMailId(getFormValue(form, "PRIMARY EMAIL ADDRESS_5"))
+                            .secondaryMailId(getFormValue(form, "SECONDARY EMAIL ADDRESS_5"))
+                            .build()
+            );
         }
 
-        // Extract third party if mentioned
-        String thirdPartyName = extractFieldValue(text, "Third Party");
-        if (thirdPartyName != null && !thirdPartyName.isBlank()) {
-            parties.add(InvolvedParty.builder()
-                    .name(thirdPartyName)
-                    .role("THIRD_PARTY")
-                    .build());
+        // --- DRIVER (only if different) ---
+        if (!sameAsOwner &&
+                driverName != null &&
+                !driverName.isBlank()) {
+
+            parties.add(
+                    InvolvedParty.builder()
+                            .name(driverName)
+                            .role("THIRD_PARTY_DRIVER")
+                            .primaryPhone(getFormValue(form, "PHONE  CELL HOME BUS PRIMARY_6"))
+                            .primaryPhoneType(getPhoneType(
+                                    form,
+                                    "Check Box56",
+                                    "Check Box57",
+                                    "Check Box58"
+                            ))
+                            .secondaryPhone(getFormValue(form, "DRIVER SECONDARY PHONE"))
+                            .secondaryPhoneType(getPhoneType(
+                                    form,
+                                    "Check Box59",
+                                    "Check Box60",
+                                    "Check Box61"
+                            ))
+                            .primaryMailId(getFormValue(form, "PRIMARY EMAIL ADDRESS_6"))
+                            .secondaryMailId(getFormValue(form, "SECONDARY EMAIL ADDRESS_6"))
+                            .build()
+            );
         }
 
         return parties;
     }
 
+
+    public PhoneType getPhoneType(Map<String, String> form, String home, String bus, String cell) {
+
+        if ("Yes".equalsIgnoreCase(form.get(home))) {
+            return PhoneType.HOME;
+        }
+        if ("Yes".equalsIgnoreCase(form.get(bus))) {
+            return PhoneType.BUS;
+        }
+        if ("Yes".equalsIgnoreCase(form.get(cell))) {
+            return PhoneType.CELL;
+        }
+
+        return null;
+    }
+
+
     /**
      * Extract asset details
      */
-    private AssetDetails extractAssetDetails(String text) {
+    private AssetDetails extractAssetDetails(Map<String, String> text) {
         AssetDetails.AssetDetailsBuilder builder = AssetDetails.builder();
 
         // Determine asset type

@@ -1,5 +1,6 @@
 package com.example.fnol_agent.model;
 
+import com.example.fnol_agent.service.PhoneType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -18,17 +19,24 @@ public class InvolvedParty {
 
     private String role; // CLAIMANT, THIRD_PARTY, WITNESS
 
-    private String contactPhone;
+    private String primaryPhone;
 
-    private String contactEmail;
+    private PhoneType primaryPhoneType;
 
-    private String address;
+    private String secondaryPhone;
+
+    private PhoneType secondaryPhoneType;
+
+    private String primaryMailId;
+
+    private String secondaryMailId;
 
     /**
      * Check if party has minimum required information
      */
     public boolean isValid() {
         return name != null && !name.isBlank() &&
-                role != null && !role.isBlank();
+                role != null && !role.isBlank() &&
+                (primaryPhone != null && !primaryPhone.isBlank() && primaryPhoneType != null);
     }
 }

@@ -118,18 +118,18 @@ public class ClaimRoutingService {
             warnings.add("Incident time not provided - may affect investigation");
         }
 
-        if (document.getInvolvedParties() != null) {
-            long partiesWithoutContact = document.getInvolvedParties().stream()
-                    .filter(p -> (p.getContactPhone() == null || p.getContactPhone().isBlank()) &&
-                            (p.getContactEmail() == null || p.getContactEmail().isBlank()))
-                    .count();
-            if (partiesWithoutContact > 0) {
-                warnings.add(String.format(
-                        "%d involved party/parties missing contact information",
-                        partiesWithoutContact
-                ));
-            }
-        }
+//        if (document.getInvolvedParties() != null) {
+//            long partiesWithoutContact = document.getInvolvedParties().stream()
+//                    .filter(p -> (p.getContactPhone() == null || p.getContactPhone().isBlank()) &&
+//                            (p.getContactEmail() == null || p.getContactEmail().isBlank()))
+//                    .count();
+//            if (partiesWithoutContact > 0) {
+//                warnings.add(String.format(
+//                        "%d involved party/parties missing contact information",
+//                        partiesWithoutContact
+//                ));
+//            }
+//        }
 
         if (document.getAttachments() == null || document.getAttachments().isEmpty()) {
             warnings.add("No attachments/supporting documents provided");

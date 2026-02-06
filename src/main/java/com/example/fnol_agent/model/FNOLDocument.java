@@ -50,12 +50,6 @@ public class FNOLDocument {
             if (policyInformation.getPolicyholderName() == null || policyInformation.getPolicyholderName().isBlank()) {
                 missing.add("policyInformation.policyholderName");
             }
-            if (policyInformation.getEffectiveStartDate() == null) {
-                missing.add("policyInformation.effectiveStartDate");
-            }
-            if (policyInformation.getEffectiveEndDate() == null) {
-                missing.add("policyInformation.effectiveEndDate");
-            }
         }
 
         // Incident Information

@@ -6,6 +6,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.Instant;
 import java.time.LocalDate;
 
 /**
@@ -21,11 +22,10 @@ public class PolicyInformation {
 
     private String policyholderName;
 
-    @JsonFormat(pattern = "yyyy-MM-dd")
-    private LocalDate effectiveStartDate;
+    private String agencyCustomerId;
 
-    @JsonFormat(pattern = "yyyy-MM-dd")
-    private LocalDate effectiveEndDate;
+    // i am not sure about what should be place here so i'm going to place Data of loss
+    private LocalDate effectiveDate;
 
     /**
      * Check if all mandatory policy fields are present
@@ -33,7 +33,6 @@ public class PolicyInformation {
     public boolean isComplete() {
         return policyNumber != null && !policyNumber.isBlank() &&
                 policyholderName != null && !policyholderName.isBlank() &&
-                effectiveStartDate != null &&
-                effectiveEndDate != null;
+                effectiveDate != null;
     }
 }

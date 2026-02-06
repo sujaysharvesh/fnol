@@ -21,8 +21,7 @@ public class IncidentInformation {
     @JsonFormat(pattern = "yyyy-MM-dd")
     private LocalDate incidentDate;
 
-    @JsonFormat(pattern = "HH:mm")
-    private LocalTime incidentTime;
+    private String incidentTime;
 
     private String location;
 

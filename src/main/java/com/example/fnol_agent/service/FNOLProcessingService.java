@@ -9,10 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * Main service for processing FNOL documents
@@ -31,10 +28,15 @@ public class FNOLProcessingService {
     public ProcessingResult processDocument(MultipartFile file) {
         try {
             // Extract text from document
-            String text = extractText(file);
+            String filename = file.getOriginalFilename();
+
+            Map<String, String> pdfInfo = new HashMap<>();
+            if ((filename.toLowerCase().endsWith(".pdf"))) {
+                pdfInfo = extractTextFromPdf(file);
+            }
 
             // Extract FNOL information
-            FNOLDocument document = extractionService.extractFNOLDocument(text);
+            FNOLDocument document = extractionService.extractFNOLDocument(pdfInfo);
 
             // Determine routing
             RoutingDecision routing = routingService.determineRoute(document);
@@ -70,22 +72,20 @@ public class FNOLProcessingService {
     /**
      * Extract text from document based on file type
      */
-    private String extractText(MultipartFile file) throws Exception {
+    private Map<String, String> extractTextFromPdf(MultipartFile file) throws Exception {
+
         String filename = file.getOriginalFilename();
 
         if (filename == null) {
             throw new IllegalArgumentException("File name is required");
         }
 
-        if (filename.toLowerCase().endsWith(".pdf")) {
-            return extractionService.extractTextFromPdf(file);
-        } else if (filename.toLowerCase().endsWith(".txt")) {
-            return extractionService.extractTextFromTxt(file);
-        } else {
-            throw new IllegalArgumentException(
-                    "Unsupported file type. Only PDF and TXT files are supported."
-            );
-        }
+        return extractionService.extractTextFromPdf(file);
+
+    }
+
+    private String extractTextFromTextFile(MultipartFile file) throws Exception {
+        return extractionService.extractTextFromTxt(file);
     }
 
     /**

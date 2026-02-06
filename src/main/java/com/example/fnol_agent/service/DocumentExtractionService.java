@@ -5,6 +5,8 @@ import com.example.fnol_agent.model.*;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
+import org.apache.pdfbox.pdmodel.interactive.form.PDAcroForm;
+import org.apache.pdfbox.pdmodel.interactive.form.PDField;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.apache.pdfbox.text.PDFTextStripperByArea;
 import org.slf4j.Logger;
@@ -19,7 +21,9 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -62,18 +66,32 @@ public class DocumentExtractionService {
     /**
      * Extract text from PDF file
      */
-    public String extractTextFromPdf(MultipartFile file) throws IOException {
+    public Map<String, String> extractTextFromPdf(MultipartFile file) throws IOException {
+        Map<String, String> formData = new HashMap<>();
+
         try (PDDocument document = PDDocument.load(file.getInputStream())) {
+            PDAcroForm acroForm = document.getDocumentCatalog().getAcroForm();
 
-            // Simple heuristic: ACORD PDFs contain this header
-            String rawText = new PDFTextStripper().getText(document);
+            if (acroForm != null) {
+                log.info("PDF has fillable form fields");
 
-            if (rawText.contains("AUTOMOBILE LOSS NOTICE")) {
-                return extractTextByBoxes(document);
+                for (PDField field : acroForm.getFields()) {
+                    String fieldName = field.getFullyQualifiedName();
+                    String fieldValue = field.getValueAsString();
+
+                    if (fieldValue != null && !fieldValue.trim().isEmpty()) {
+                        formData.put(fieldName, fieldValue.trim());
+                        log.debug("Form field - {}: {}", fieldName, fieldValue);
+                    }
+                }
+
+                log.info("Extracted {} form fields", formData.size());
+            } else {
+                log.info("PDF does not have fillable form fields");
             }
-
-            return rawText;
         }
+
+        return formData;
     }
 
 
@@ -87,82 +105,47 @@ public class DocumentExtractionService {
     /**
      * Extract FNOL document from text content
      */
-    public FNOLDocument extractFNOLDocument(String text) {
+    public FNOLDocument extractFNOLDocument(Map<String, String> info) {
         return FNOLDocument.builder()
-                .policyInformation(extractPolicyInformation(text))
-                .incidentInformation(extractIncidentInformation(text))
-                .involvedParties(extractInvolvedParties(text))
-                .assetDetails(extractAssetDetails(text))
-                .claimType(extractClaimType(text))
-                .attachments(new ArrayList<>())
-                .initialEstimate(extractInitialEstimate(text))
-                .build();
+                .policyInformation(extractPolicyInformation(info))
+                .incidentInformation(extractIncidentInformation(info)).build();
+//                .involvedParties(extractInvolvedParties(info))
+//                .assetDetails(extractAssetDetails(info))
+//                .claimType(extractClaimType(info))
+//                .attachments(new ArrayList<>())
+//                .initialEstimate(extractInitialEstimate(info))
+//                .build();
     }
 
     /**
      * Extract policy information
      */
-    private PolicyInformation extractPolicyInformation(String text) {
-        PolicyInformation.PolicyInformationBuilder builder = PolicyInformation.builder();
+    private PolicyInformation extractPolicyInformation(Map<String, String> form) {
 
-        // Extract policy number
-        Matcher policyMatcher = POLICY_NUMBER_PATTERN.matcher(text);
-        if (policyMatcher.find()) {
-            builder.policyNumber(policyMatcher.group(1).trim());
-        }
+        PolicyInformation policyInformation = PolicyInformation.builder()
+                .policyNumber(getFormValue(form, "Text7"))
+                .policyholderName(getFormValue(form, "NAME OF INSURED First Middle Last"))
+                .agencyCustomerId(getFormValue(form, "AGENCY CUSTOMER ID"))
+                .effectiveDate(parseDate(getFormValue(form, "Text3")))
+                .build();
 
-        // Extract policyholder name
-        Matcher holderMatcher = POLICYHOLDER_PATTERN.matcher(text);
-        if (holderMatcher.find()) {
-            builder.policyholderName(holderMatcher.group(1).trim());
-        }
 
-        // Extract effective dates
-        List<LocalDate> dates = extractDates(text);
-        if (dates.size() >= 2) {
-            builder.effectiveStartDate(dates.get(0));
-            builder.effectiveEndDate(dates.get(1));
-        }
-
-        return builder.build();
+        return policyInformation;
     }
 
     /**
      * Extract incident information
      */
-    private IncidentInformation extractIncidentInformation(String text) {
-        IncidentInformation.IncidentInformationBuilder builder = IncidentInformation.builder();
+    private IncidentInformation extractIncidentInformation(Map<String, String> form) {
 
-        // Extract incident date
-        if (text.contains("Incident Date") || text.contains("Date of Loss")) {
-            String section = extractSection(text, "(?:Incident Date|Date of Loss)", 200);
-            List<LocalDate> dates = extractDates(section);
-            if (!dates.isEmpty()) {
-                builder.incidentDate(dates.get(0));
-            }
-        }
+        IncidentInformation incidentInformation = IncidentInformation.builder()
+                .incidentDate(parseDate(getFormValue(form, "Text3")))
+                .incidentTime(parseTimeAsString(form, "Text4"))
+                .location(buildLossLocation(form))
+                .description(getFormValue(form, "DESCRIPTION OF ACCIDENT ACORD 101 Additional Remarks Schedule may be attached if more space is required"))
+                .build();
 
-        // Extract incident time
-        Matcher timeMatcher = TIME_PATTERN.matcher(text);
-        if (timeMatcher.find()) {
-            try {
-                String timeStr = timeMatcher.group(1).trim();
-                LocalTime time = parseTime(timeStr);
-                builder.incidentTime(time);
-            } catch (Exception e) {
-                // Time parsing failed, continue
-            }
-        }
-
-        // Extract location
-        String location = extractFieldValue(text, "(?:Location|Address|Scene)");
-        builder.location(location);
-
-        // Extract description
-        String description = extractDescription(text);
-        builder.description(description);
-
-        return builder.build();
+        return incidentInformation;
     }
 
     /**
@@ -288,37 +271,58 @@ public class DocumentExtractionService {
 
         for (DateTimeFormatter formatter : formatters) {
             try {
-                return LocalDate.parse(dateStr, formatter);
-            } catch (DateTimeParseException e) {
-                // Try next formatter
-            }
+                return LocalDate.parse(dateStr.trim(), formatter);
+            } catch (DateTimeParseException ignored) {}
         }
-
         return null;
     }
 
     /**
      * Parse time string
      */
-    private LocalTime parseTime(String timeStr) {
-        timeStr = timeStr.replaceAll("\\s+", "").toUpperCase();
+    private String parseTimeAsString(Map<String, String> form, String key) {
 
-        DateTimeFormatter[] formatters = {
-                DateTimeFormatter.ofPattern("HH:mm"),
-                DateTimeFormatter.ofPattern("h:mma"),
-                DateTimeFormatter.ofPattern("hh:mma")
-        };
+        String timeValue = getFormValue(form, key); // e.g. "10:30"
+        if (timeValue == null || timeValue.isBlank()) {
+            return null;
+        }
 
-        for (DateTimeFormatter formatter : formatters) {
-            try {
-                return LocalTime.parse(timeStr, formatter);
-            } catch (DateTimeParseException e) {
-                // Try next formatter
-            }
+        if ("Yes".equalsIgnoreCase(getFormValue(form, "Check Box5"))) {
+            return timeValue + " AM";
+        }
+
+        if ("Yes".equalsIgnoreCase(getFormValue(form, "Check Box6"))) {
+            return timeValue + " PM";
         }
 
         return null;
     }
+
+    public String buildLossLocation(Map<String, String> form) {
+        String street = getFormValue(form, "STREET LOCATION OF LOSS");
+        String cityStateZip = getFormValue(form,  "CITY STATE ZIP");
+        String country = getFormValue(form,  "COUNTRY");
+        String describeLocation = getFormValue(form, "DESCRIBE LOCATION OF LOSS IF NOT AT SPECIFIC STREET ADDRESS");
+
+        List<String> parts = new ArrayList<>();
+
+        if (street != null && cityStateZip != null && country != null) {
+            parts.add(street);
+            parts.add(cityStateZip);
+            parts.add(country);
+        }
+
+        if (!parts.isEmpty()) {
+            return String.join(", ", parts);
+        }
+
+        if (describeLocation != null && !describeLocation.isBlank()) {
+            return describeLocation.trim();
+        }
+
+        return null;
+    }
+
 
     /**
      * Extract monetary amount
@@ -429,93 +433,9 @@ public class DocumentExtractionService {
         return null;
     }
 
-    private String extractTextByBoxes(PDDocument document) throws IOException {
-        PDPage page = document.getPage(0);
-        float pageHeight = page.getMediaBox().getHeight();
-
-        PDFTextStripperByArea stripper = new PDFTextStripperByArea();
-        stripper.setSortByPosition(true);
-
-        // === ADJUSTED COORDINATES FOR ACORD FORM ===
-        // Policy Number - upper right area
-        stripper.addRegion("policyNumber",
-                rectFromTop(335, 75, 140, 20, pageHeight));
-
-        // Insured Name - left column below INSURED heading
-        stripper.addRegion("insuredName",
-                rectFromTop(25, 155, 220, 20, pageHeight));
-
-        // Date of Loss - right side of form
-        stripper.addRegion("dateOfLoss",
-                rectFromTop(480, 55, 60, 20, pageHeight));
-
-        // Loss Location - describe location section
-        stripper.addRegion("lossLocation",
-                rectFromTop(25, 360, 300, 30, pageHeight));
-
-        // Description of Accident
-        stripper.addRegion("description",
-                rectFromTop(25, 408, 500, 60, pageHeight));
-
-        // VIN - in insured vehicle section
-        stripper.addRegion("vin",
-                rectFromTop(300, 480, 100, 20, pageHeight));
-
-        // Estimate Amount
-        stripper.addRegion("estimateAmount",
-                rectFromTop(25, 610, 150, 20, pageHeight));
-
-        stripper.extractRegions(page);
-
-        StringBuilder sb = new StringBuilder();
-
-        appendIfPresent(sb, "Policy Number",
-                stripper.getTextForRegion("policyNumber"));
-
-        appendIfPresent(sb, "Policyholder Name",
-                stripper.getTextForRegion("insuredName"));
-
-        appendIfPresent(sb, "Date of Loss",
-                stripper.getTextForRegion("dateOfLoss"));
-
-        appendIfPresent(sb, "Location",
-                stripper.getTextForRegion("lossLocation"));
-
-        appendIfPresent(sb, "Description",
-                stripper.getTextForRegion("description"));
-
-        appendIfPresent(sb, "VIN",
-                stripper.getTextForRegion("vin"));
-
-        appendIfPresent(sb, "Estimated Damage",
-                stripper.getTextForRegion("estimateAmount"));
-
-        log.info("Box Extraction Output:\n{}", sb);
-        return sb.toString();
+    private String getFormValue(Map<String, String> form, String key) {
+        return form.getOrDefault(key, "");
     }
-
-    private Rectangle rectFromTop(
-            float x, float topY, float width, float height, float pageHeight) {
-        float pdfY = pageHeight - topY - height;
-        return new Rectangle(
-                Math.round(x),
-                Math.round(pdfY),
-                Math.round(width),
-                Math.round(height)
-        );
-    }
-
-    private void appendIfPresent(StringBuilder sb, String label, String value) {
-        if (value != null && !value.trim().isEmpty()) {
-            sb.append(label)
-                    .append(": ")
-                    .append(value.trim().replaceAll("\\s+", " "))
-                    .append("\n");
-        }
-    }
-
-
-
 
 
 }

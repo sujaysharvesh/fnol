@@ -3,6 +3,7 @@ package com.example.fnol_agent.controller;
 
 import com.example.fnol_agent.model.ProcessingResult;
 import com.example.fnol_agent.service.FNOLProcessingService;
+import com.example.fnol_agent.service.TxtExtractionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -36,6 +37,7 @@ import java.util.Map;
 public class FNOLController {
 
     private final FNOLProcessingService processingService;
+    private final TxtExtractionService txtExtractionService;
 
     @PostMapping(value = "/process", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(
@@ -80,7 +82,7 @@ public class FNOLController {
         }
 
         // Process document
-        ProcessingResult result = processingService.processDocument(file);
+        ProcessingResult result = processingService.processDocument(file, filename);
 
         // Determine HTTP status based on processing result
         HttpStatus status = "FAILED".equals(result.getStatus())
@@ -90,56 +92,11 @@ public class FNOLController {
         return ResponseEntity.status(status).body(result);
     }
 
-    @PostMapping(value = "/test", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @Operation(
-            summary = "Process FNOL Document",
-            description = "Upload and process a First Notice of Loss document (PDF or TXT format). " +
-                    "Extracts key fields, identifies missing information, and routes the claim."
-    )
-    @ApiResponse(
-            responseCode = "200",
-            description = "Document processed successfully",
-            content = @Content(schema = @Schema(implementation = ProcessingResult.class))
-    )
-    @ApiResponse(
-            responseCode = "400",
-            description = "Invalid file or bad request"
-    )
-    @ApiResponse(
-            responseCode = "500",
-            description = "Internal server error during processing"
-    )
-    public Map<String, String> test(
-            @Parameter(description = "FNOL document file (PDF or TXT)", required = true)
-            @RequestParam("file") MultipartFile file) throws IOException {
-
-        Map<String, String> formData = new HashMap<>();
-
-        try (PDDocument document = PDDocument.load(file.getInputStream())) {
-            PDAcroForm acroForm = document.getDocumentCatalog().getAcroForm();
-
-            if (acroForm != null) {
-                log.info("PDF has fillable form fields");
-
-                for (PDField field : acroForm.getFields()) {
-                    String fieldName = field.getFullyQualifiedName();
-                    String fieldValue = field.getValueAsString();
-
-                    if (fieldValue != null && !fieldValue.trim().isEmpty()) {
-                        formData.put(fieldName, fieldValue.trim());
-                        log.debug("Form field - {}: {}", fieldName, fieldValue);
-                    }
-                }
-
-                log.info("Extracted {} form fields", formData.size());
-            } else {
-                log.info("PDF does not have fillable form fields");
-            }
-        }
-
-        return formData;
+    @GetMapping("/health")
+    @Operation(summary = "Health Check", description = "Check if the FNOL processing service is running")
+    public ResponseEntity<String> healthCheck() {
+        return ResponseEntity.ok("FNOL processing service is running");
     }
-
 
 }
 

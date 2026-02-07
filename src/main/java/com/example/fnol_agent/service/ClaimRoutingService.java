@@ -61,7 +61,7 @@ public class ClaimRoutingService {
             case FAST_TRACK:
                 BigDecimal damage = document.getAssetDetails().getEstimatedDamage();
                 reasons.add(String.format(
-                        "Estimated damage of $%,.2f is below the fast-track threshold of $%,.2f",
+                        "Estimated damage of ₹%,.2f is below the fast-track threshold of $%,.2f",
                         damage, FAST_TRACK_THRESHOLD
                 ));
                 reasons.add("All mandatory fields are present");

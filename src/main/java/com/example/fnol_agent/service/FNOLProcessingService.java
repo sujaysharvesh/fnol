@@ -18,25 +18,24 @@ import java.util.*;
 @RequiredArgsConstructor
 public class FNOLProcessingService {
 
-    private final DocumentExtractionService extractionService;
     private final ClaimRoutingService routingService;
     private final ObjectMapper objectMapper;
+    private final PdfExtractionService pdfExtractionService;
+    private final TxtExtractionService txtExtractionService;
 
     /**
      * Process a FNOL document file
      */
-    public ProcessingResult processDocument(MultipartFile file) {
+    public ProcessingResult processDocument(MultipartFile file, String filename) {
         try {
-            // Extract text from document
-            String filename = file.getOriginalFilename();
 
-            Map<String, String> pdfInfo = new HashMap<>();
+            FNOLDocument document = null;
             if ((filename.toLowerCase().endsWith(".pdf"))) {
-                pdfInfo = extractTextFromPdf(file);
+                document = pdfExtractionService.extractPdfFNOLDocument(file);
             }
-
-            // Extract FNOL information
-            FNOLDocument document = extractionService.extractFNOLDocument(pdfInfo);
+            if((filename.toLowerCase().endsWith(".txt"))) {
+                document = txtExtractionService.extractTxtFNOLDocument(file);
+            }
 
             // Determine routing
             RoutingDecision routing = routingService.determineRoute(document);
@@ -69,24 +68,6 @@ public class FNOLProcessingService {
         }
     }
 
-    /**
-     * Extract text from document based on file type
-     */
-    private Map<String, String> extractTextFromPdf(MultipartFile file) throws Exception {
-
-        String filename = file.getOriginalFilename();
-
-        if (filename == null) {
-            throw new IllegalArgumentException("File name is required");
-        }
-
-        return extractionService.extractTextFromPdf(file);
-
-    }
-
-    private String extractTextFromTextFile(MultipartFile file) throws Exception {
-        return extractionService.extractTextFromTxt(file);
-    }
 
     /**
      * Build extracted fields map for JSON output

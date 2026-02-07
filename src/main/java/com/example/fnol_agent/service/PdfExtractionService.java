@@ -18,49 +18,16 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
-/**
- * Service for extracting information from FNOL documents
- */
 
 @Slf4j
 @Service
-public class DocumentExtractionService {
-
-    private static final Pattern POLICY_NUMBER_PATTERN = Pattern.compile(
-            "(?:policy\\s*(?:number|no\\.?|#)\\s*:?\\s*)([A-Z0-9-]+)",
-            Pattern.CASE_INSENSITIVE
-    );
-
-    private static final Pattern POLICYHOLDER_PATTERN = Pattern.compile(
-            "(?:policyholder\\s*(?:name)?\\s*:?\\s*)([A-Za-z\\s.]+?)(?:\\n|,|\\||Policy)",
-            Pattern.CASE_INSENSITIVE
-    );
-
-    private static final Pattern DATE_PATTERN = Pattern.compile(
-            "\\b(\\d{1,2}[-/]\\d{1,2}[-/]\\d{2,4}|\\d{4}[-/]\\d{1,2}[-/]\\d{1,2})\\b"
-    );
-
-    private static final Pattern TIME_PATTERN = Pattern.compile(
-            "\\b(\\d{1,2}:\\d{2}(?:\\s*(?:AM|PM))?)\\b",
-            Pattern.CASE_INSENSITIVE
-    );
-
-    private static final Pattern AMOUNT_PATTERN = Pattern.compile(
-            "(?:[$€£])\\s*([\\d,]+(?:\\.\\d{2})?)"
-    );
-
-    private static final Pattern VIN_PATTERN = Pattern.compile(
-            "(?:VIN|Vehicle\\s*Identification\\s*Number)\\s*:?\\s*([A-HJ-NPR-Z0-9]{17})",
-            Pattern.CASE_INSENSITIVE
-    );
+public class PdfExtractionService {
 
     /**
      * Extract text from PDF file
      */
-    public Map<String, String> extractTextFromPdf(MultipartFile file) throws IOException {
+    public FNOLDocument extractPdfFNOLDocument(MultipartFile file) throws IOException {
         Map<String, String> formData = new HashMap<>();
 
         try (PDDocument document = PDDocument.load(file.getInputStream())) {
@@ -85,29 +52,20 @@ public class DocumentExtractionService {
             }
         }
 
-        return formData;
+        FNOLDocument document = buildPdfFNOLDocument(formData);
+        return document;
     }
 
 
-    /**
-     * Extract text from plain text file
-     */
-    public String extractTextFromTxt(MultipartFile file) throws IOException {
-        return new String(file.getBytes());
-    }
-
-    /**
-     * Extract FNOL document from text content
-     */
-    public FNOLDocument extractFNOLDocument(Map<String, String> info) {
+    public FNOLDocument buildPdfFNOLDocument(Map<String, String> form) {
         return FNOLDocument.builder()
-                .policyInformation(extractPolicyInformation(info))
-                .incidentInformation(extractIncidentInformation(info))
-                .involvedParties(extractInvolvedParties(info))
-                .assetDetails(extractAssetDetails(info))
-                .claimType(extractClaimType(info))
+                .policyInformation(extractPolicyInformation(form))
+                .incidentInformation(extractIncidentInformation(form))
+                .involvedParties(extractInvolvedParties(form))
+                .assetDetails(extractAssetDetails(form))
+                .claimType(extractClaimType(form))
                 .attachments(new ArrayList<>())
-                .initialEstimate(extractInitialEstimate(info))
+                .initialEstimate(extractInitialEstimate(form))
                 .build();
     }
 
@@ -151,15 +109,15 @@ public class DocumentExtractionService {
         List<InvolvedParty> parties = new ArrayList<>();
 
         InvolvedParty claimant = InvolvedParty.builder()
-                    .name(getFormValue(form, "NAME OF INSURED First Middle Last"))
-                    .role("CLAIMANT")
-                    .primaryPhone(getFormValue(form, "PHONE  CELL HOME BUS PRIMARY"))
-                    .primaryPhoneType(getPhoneType(form, "Check Box10", "Check Box11", "Check Box12"))
-                    .secondaryPhone(getFormValue(form, "PHONE  SECONDARY CELL HOME BUS"))
-                    .secondaryPhoneType(getPhoneType(form, "Check Box13", "Check Box14", "Check Box15"))
-                    .primaryMailId(getFormValue(form, "PRIMARY EMAIL ADDRESS"))
-                    .secondaryMailId(getFormValue(form,"SECONDARY EMAIL ADDRESS"))
-                    .build();
+                .name(getFormValue(form, "NAME OF INSURED First Middle Last"))
+                .role("CLAIMANT")
+                .primaryPhone(getFormValue(form, "PHONE  CELL HOME BUS PRIMARY"))
+                .primaryPhoneType(getPhoneType(form, "Check Box10", "Check Box11", "Check Box12"))
+                .secondaryPhone(getFormValue(form, "PHONE  SECONDARY CELL HOME BUS"))
+                .secondaryPhoneType(getPhoneType(form, "Check Box13", "Check Box14", "Check Box15"))
+                .primaryMailId(getFormValue(form, "PRIMARY EMAIL ADDRESS"))
+                .secondaryMailId(getFormValue(form,"SECONDARY EMAIL ADDRESS"))
+                .build();
 
         parties.add(claimant);
         buildThirdParties(form, parties);
@@ -191,9 +149,9 @@ public class DocumentExtractionService {
                             .secondaryPhone(getFormValue(form, "PHONE  SECONDARY CELL HOME BUS_5"))
                             .secondaryPhoneType(getPhoneType(
                                     form,
-                                    "OWNER HOME SECONDARY",
-                                    "OWNER BUS SECONDARY",
-                                    "OWNER CELL SECONDARY"
+                                    "Check Box52",
+                                    "Check Box53",
+                                    "Check Box54"
                             ))
                             .primaryMailId(getFormValue(form, "PRIMARY EMAIL ADDRESS_5"))
                             .secondaryMailId(getFormValue(form, "SECONDARY EMAIL ADDRESS_5"))
@@ -281,7 +239,6 @@ public class DocumentExtractionService {
     }
 
 
-
     /**
      * Extract initial estimate
      */
@@ -289,27 +246,7 @@ public class DocumentExtractionService {
         return BigDecimal.valueOf(Double.parseDouble(getFormValue(form, "Text45")));
     }
 
-    /**
-     * Extract dates from text
-     */
-    private List<LocalDate> extractDates(String text) {
-        List<LocalDate> dates = new ArrayList<>();
-        Matcher matcher = DATE_PATTERN.matcher(text);
 
-        while (matcher.find()) {
-            String dateStr = matcher.group(1);
-            try {
-                LocalDate date = parseDate(dateStr);
-                if (date != null) {
-                    dates.add(date);
-                }
-            } catch (Exception e) {
-                // Continue on parse error
-            }
-        }
-
-        return dates;
-    }
 
     /**
      * Parse date string
@@ -379,118 +316,10 @@ public class DocumentExtractionService {
     }
 
 
-    /**
-     * Extract monetary amount
-     */
-    private BigDecimal extractAmount(String text, String fieldPattern) {
-        Pattern pattern = Pattern.compile(fieldPattern + "\\s*:?\\s*" + AMOUNT_PATTERN.pattern(),
-                Pattern.CASE_INSENSITIVE);
-        Matcher matcher = pattern.matcher(text);
-
-        if (matcher.find()) {
-            String amountStr = matcher.group(matcher.groupCount()).replace(",", "");
-            try {
-                return new BigDecimal(amountStr);
-            } catch (NumberFormatException e) {
-                // Continue
-            }
-        }
-
-        // Try to find any amount
-        Matcher amountMatcher = AMOUNT_PATTERN.matcher(text);
-        if (amountMatcher.find()) {
-            String amountStr = amountMatcher.group(1).replace(",", "");
-            try {
-                return new BigDecimal(amountStr);
-            } catch (NumberFormatException e) {
-                // Continue
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * Extract field value
-     */
-    private String extractFieldValue(String text, String fieldName) {
-        Pattern pattern = Pattern.compile(
-                fieldName + "\\s*:?\\s*([A-Za-z0-9\\s.,'-]+?)(?:\\n|\\||$)",
-                Pattern.CASE_INSENSITIVE
-        );
-        Matcher matcher = pattern.matcher(text);
-
-        if (matcher.find()) {
-            return matcher.group(1).trim();
-        }
-
-        return null;
-    }
-
-    /**
-     * Extract description
-     */
-    private String extractDescription(String text) {
-        Pattern pattern = Pattern.compile(
-                "(?:Description|Incident Description|Details)\\s*:?\\s*(.+?)(?:\\n\\n|Claimant|Third Party|$)",
-                Pattern.CASE_INSENSITIVE | Pattern.DOTALL
-        );
-        Matcher matcher = pattern.matcher(text);
-
-        if (matcher.find()) {
-            return matcher.group(1).trim();
-        }
-
-        return null;
-    }
-
-    /**
-     * Extract section of text
-     */
-    private String extractSection(String text, String startPattern, int length) {
-        Pattern pattern = Pattern.compile(startPattern, Pattern.CASE_INSENSITIVE);
-        Matcher matcher = pattern.matcher(text);
-
-        if (matcher.find()) {
-            int start = matcher.start();
-            int end = Math.min(start + length, text.length());
-            return text.substring(start, end);
-        }
-
-        return text;
-    }
-
-    /**
-     * Extract phone number
-     */
-    private String extractPhone(String text) {
-        Pattern pattern = Pattern.compile("\\b\\d{3}[-.]?\\d{3}[-.]?\\d{4}\\b");
-        Matcher matcher = pattern.matcher(text);
-
-        if (matcher.find()) {
-            return matcher.group();
-        }
-
-        return null;
-    }
-
-    /**
-     * Extract email
-     */
-    private String extractEmail(String text) {
-        Pattern pattern = Pattern.compile("\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Z|a-z]{2,}\\b");
-        Matcher matcher = pattern.matcher(text);
-
-        if (matcher.find()) {
-            return matcher.group();
-        }
-
-        return null;
-    }
-
     private String getFormValue(Map<String, String> form, String key) {
         return form.getOrDefault(key, "");
     }
+
 
 
 }

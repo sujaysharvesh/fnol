@@ -37,7 +37,7 @@ public class AssetDetails {
      */
     public boolean isUnderFastTrackThreshold(BigDecimal threshold) {
         return estimatedDamage != null &&
-                estimatedDamage.compareTo(threshold) < 25000;
+                estimatedDamage.compareTo(threshold) < 0;
     }
 
     public enum PhoneType {

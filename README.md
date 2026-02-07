@@ -86,9 +86,24 @@ try (PDDocument document = PDDocument.load(file.getInputStream())) {
 1. **Clone the repository**
 ```bash
 git clone https://github.com/sujaysharvesh/fnol.git
-cd fnol-agent
+cd fnol
 ```
+### Add `application.properties`
 
+Create `src/main/resources/application.properties` with the following content:
+
+```properties
+spring.application.name=fnol-agent
+server.port=4001
+
+springdoc.swagger-ui.path=/swagger-ui.html
+springdoc.api-docs.path=/api-docs
+springdoc.swagger-ui.operationsSorter=method
+
+spring.servlet.multipart.enabled=true
+spring.servlet.multipart.max-file-size=10MB
+spring.servlet.multipart.max-request-size=10MB
+```
 2. **Build the project**
 ```bash
 mvn clean install
@@ -98,9 +113,30 @@ mvn clean install
 ```bash
 mvn spring-boot:run
 ```
-the application will start on `http://localhost:4001`
+the application will start on `http://localhost:8080`
 
-### **Optional if want run it with docker**
+# Troubleshooting
+### Common Issues
+
+**Issue**: Port 8080 already in use
+```bash
+# Change port in application.properties
+server.port=8081
+```
+
+**Issue**: PDF extraction fails
+```bash
+# Ensure PDFBox dependency is present
+mvn dependency:tree | grep pdfbox
+```
+
+**Issue**: Out of memory with large files
+```bash
+# Increase max file size in application.properties
+spring.servlet.multipart.max-file-size=50MB
+```
+
+## **Optional if want run it with docker**
 1. Build Docker Image
 ``` bash
 docker build -t sujaysharvesh/fnol-agent:latest .
@@ -111,17 +147,17 @@ docker stop $(docker ps -q --filter ancestor=sujaysharvesh/fnol-agent:latest)
 ```
 3. Stop Docker Image
 ``` bash
-docker run -d -p 4001:4001 sujaysharvesh/fnol-agent:latest
+docker run -d -p 8080:8080 sujaysharvesh/fnol-agent:latest
 ```
 
 ### Quick Test
 
 ```bash
 # Health check
-curl http://localhost:4001/api/v1/fnol/health
+curl http://localhost:8080/api/v1/fnol/health
 
 # Process a sample document
-curl -X POST http://localhost:4001/api/v1/fnol/process \
+curl -X POST http://localhost:8080/api/v1/fnol/process \
   -F "file=@sample-documents/sample1.pdf"
 ```
 
@@ -129,8 +165,8 @@ curl -X POST http://localhost:4001/api/v1/fnol/process \
 
 Once the application is running, access the interactive API documentation:
 
-- **Swagger UI**: http://localhost:4001/swagger-ui.html
-- **OpenAPI Spec**: http://localhost:4001/api-docs
+- **Swagger UI**: http://localhost:8080/swagger-ui.html
+- **OpenAPI Spec**: http://localhost:8080/api-docs
 ### Main Endpoint
 
 **POST** `/api/v1/fnol/process`
